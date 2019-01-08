@@ -16,7 +16,7 @@ def parse_content(content):
     series = content[5]
 
     end = 7+num_vehicles
-    constraints = [content[i] for i in range(7, end)]
+    equipment = [content[i] for i in range(7, end)]
 
     l_lengths = content[end+1]
 
@@ -25,7 +25,7 @@ def parse_content(content):
 
     blocked = {i[0]: i[1:] for i in content[end+7:]}
 
-    return num_vehicles, num_lanes, v_lengths, series, constraints, l_lengths, departures, schedule_types
+    return num_vehicles, num_lanes, v_lengths, series, equipment, l_lengths, departures, schedule_types, blocked 
 #    # Restructure
 #
 #    vehicles = {i: {} for i in range(num_vehicles)}
@@ -34,14 +34,14 @@ def parse_content(content):
 #    for v in vehicles.keys():
 #        vehicles[v]['length'] = v_lengths[v]
 #        vehicles[v]['series'] = v_series[v]
-#        vehicles[v]['constraint'] = constraints[v]
+#        vehicles[v]['constraint'] = equipment[v]
 #        vehicles[v]['departure'] = departures[v]
 #        vehicles[v]['schedule_type'] = schedule_types[v]
 #
 #    for i in lanes.keys():
 #        lanes[i]['length'] = l_lengths[i]
 #        lanes[i]['blocked_lanes'] = blocked[i] if i in blocked_lanes.keys() else []
-#        #maybe include transposed vehicle constraints
+#        #maybe include transposed vehicle equipment
 #
 #    return vehicles, lanes
 
