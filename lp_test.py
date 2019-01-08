@@ -29,7 +29,7 @@ for v in range(num_v):
 for l in range(num_l):
     for s in np.unique(series):
         prob += lpSum([X[(v,l,p)] * (series[v] == s) for v in range(num_v)
-                                                     for p in range(num_p)]) <= Y[(l,s)]
+                                                     for p in range(num_p)]) <= 10000*Y[(l,s)]
     prob += lpSum([Y[(l,s)] for s in np.unique(series)]) <= 1
 
 # 3. A vehicle can be placed only on a lane with the necessary equipment constraints related to lane equipment (e.g., tramways can be parked on lanes with rails, buses on any lane).
