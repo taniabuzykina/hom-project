@@ -17,8 +17,9 @@ X = {(v,l,p): LpVariable(f'x_{v}_{l}_{p}', cat='Binary') for v in range(num_v)
 Y = {(l,s): LpVariable(f'y_{l}_{s}', cat='Binary') for l in range(num_l)
                                                    for s in np.unique(series)}
 
-prob += lpSum([Y[(l,s)] for l in range(num_l)
-                     for s in np.unique(series)])
+# Min function
+prob += 10#lpSum([Y[(l,s)] for l in range(num_l)
+        #             for s in np.unique(series)])
 
 # 1. A vehicle is assigned to exactly one lane.
 for v in range(num_v):
