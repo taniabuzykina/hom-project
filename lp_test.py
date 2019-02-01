@@ -6,7 +6,7 @@ file_path = 'instance1.txt'
 
 num_v, num_l, v_lengths, series, equipment, l_lengths, departures, schedule_types, blocked = parse(file_path)
 
-num_p = 2 # Number of positions (should be calculated and held as small as possible)
+num_p = max(l_lengths) // min(v_lengths) # Number of positions (should be calculated and held as small as possible)
 max_departures = max(departures) # latest departure time, we need this for some conditions
 
 print(f"Num Variables: {len(v_lengths)*len(l_lengths)*num_p}")
@@ -97,7 +97,7 @@ for l in range(num_l):
             pos = np.argmax(values)+1
             result_matrix[l,p] = pos
 
-with open(file_path + '_solution.txt', 'w') as f:
+with open(file_path + f'_solution_num_p_{num_p}.txt', 'w') as f:
     for l in range(num_l):
         for p in range(num_p):
             f.write(f'{str(result_matrix[l,p]) + " " if result_matrix[l,p] is not None else ""}')
