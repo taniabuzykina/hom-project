@@ -2,7 +2,9 @@ import numpy as np
 from pulp import *
 from parser import parse
 
-num_v, num_l, v_lengths, series, equipment, l_lengths, departures, schedule_types, blocked = parse('instance1.txt')
+file_path = 'instance1.txt'
+
+num_v, num_l, v_lengths, series, equipment, l_lengths, departures, schedule_types, blocked = parse(file_path)
 
 num_p = 2 # Number of positions (should be calculated and held as small as possible)
 max_departures = max(departures) # latest departure time, we need this for some conditions
@@ -59,10 +61,10 @@ for l in range(num_l):
         prob += lpSum([(X[(v,l,p)]-X[(v,l,p+1)]) * departures[v] + X[(v,l,p+1)] * max_departures for v in range(num_v)]) <= max_departures
 
 # 8. The departure of all the vehicles in a blocking lane must be prior to the departure of any vehicle in blocked lanes - blocked lanes.
-for v in range(num_v):
+for p in range(num_p):
     for l in blocked:
         for b in blocked[l]:
-            prob += lpSum([(X[(v,l,p)]-X[(v,b,0)]) * departures[v] + X[(v,b,0)] * max_departures for v in range(num_v)]) <= max_departures
+            prob += lpSum([(X[(v,l-1,p)]-X[(v,b-1,0)]) * departures[v] + X[(v,b-1,0)] * max_departures for v in range(num_v)]) <= max_departures
 
 # 9. Positions are taken in order, i.e. position x+1 is only taken if x is taken
 for l in range(num_l):
@@ -79,9 +81,31 @@ print("Status:", LpStatus[prob.status])
 
 print("Minimized value =", value(prob.objective))
 
+# Write solution as matrix
+solution_matrix = np.zeros((num_v, num_l, num_p))
+for v in range(num_v):
+    for l in range(num_l):
+        for p in range(num_p):
+            solution_matrix[v,l,p] = prob.variablesDict()[f'x_{v}_{l}_{p}'].varValue
+
 # Construct solution matrix
+result_matrix = np.full((num_l, num_p), None)
 for l in range(num_l):
     for p in range(num_p):
-        entry = sum([prob.variablesDict()[f'x_{v}_{l}_{p}'].value() for v in range(num_v)])
-        print(entry)
+        values = solution_matrix[:,l,p]
+        if max(values) > 0:
+            pos = np.argmax(values)+1
+            result_matrix[l,p] = pos
+
+with open(file_path + '_solution.txt', 'w') as f:
+    for l in range(num_l):
+        for p in range(num_p):
+            f.write(f'{str(result_matrix[l,p]) + " " if result_matrix[l,p] is not None else ""}')
+        f.write('\n')
+print('Done.')
+
+
+
+
+
 
