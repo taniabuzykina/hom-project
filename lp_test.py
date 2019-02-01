@@ -4,7 +4,8 @@ from parser import parse
 
 num_v, num_l, v_lengths, series, equipment, l_lengths, departures, schedule_types, blocked = parse('instance1.txt')
 
-num_p = 20 # Number of positions (should be calculated and held as small as possible)
+num_p = 2 # Number of positions (should be calculated and held as small as possible)
+max_departures = max(departures) # latest departure time, we need this for some conditions
 
 print(f"Num Variables: {len(v_lengths)*len(l_lengths)*num_p}")
 
@@ -12,14 +13,14 @@ prob = LpProblem("Scheduling", LpMinimize)
 
 X = {(v,l,p): LpVariable(f'x_{v}_{l}_{p}', cat='Binary') for v in range(num_v)
                                                          for l in range(num_l)
-                                                         for p in range(num_p)} 
+                                                         for p in range(num_p)}
 
 Y = {(l,s): LpVariable(f'y_{l}_{s}', cat='Binary') for l in range(num_l)
                                                    for s in np.unique(series)}
 
 # Min function
-prob += 10#lpSum([Y[(l,s)] for l in range(num_l)
-        #             for s in np.unique(series)])
+prob += lpSum([Y[(l,s)] for l in range(num_l)
+                        for s in np.unique(series)])
 
 # 1. A vehicle is assigned to exactly one lane.
 for v in range(num_v):
@@ -36,8 +37,7 @@ for l in range(num_l):
 # 3. A vehicle can be placed only on a lane with the necessary equipment constraints related to lane equipment (e.g., tramways can be parked on lanes with rails, buses on any lane).
 for v in range(num_v):
     for l in range(num_l):
-        for p in range(num_p):
-            prob += X[(v,l,p)] <= int(equipment[v][l])
+            prob += lpSum([X[(v,l,p)] for p in range(num_p)]) <= int(equipment[v][l])
 
 # 4. the sum of vehicle lengths on a lane cannot exceed the lane capacity, while including the distance of 0.5 between vehicles in a lane.
 for l in range(num_l):
@@ -56,13 +56,18 @@ for l in range(num_l):
 # 7. The departure time of any vehicle must be prior to the vehicle following it - departure time in the instance.
 for l in range(num_l):
     for p in range(num_p-1): #-1 because we don't care about the last
-        prob += lpSum([X[(v,l,p)]-X[(v,l,p+1)]*departures[v] for v in range(num_v)]) <= 0
+        prob += lpSum([(X[(v,l,p)]-X[(v,l,p+1)]) * departures[v] + X[(v,l,p+1)] * max_departures for v in range(num_v)]) <= max_departures
 
 # 8. The departure of all the vehicles in a blocking lane must be prior to the departure of any vehicle in blocked lanes - blocked lanes.
 for v in range(num_v):
     for l in blocked:
         for b in blocked[l]:
-            prob += lpSum([X[(v,l,p)]-X[(v,b,p)] for p in range(num_p)]) * departures[v] <= 0
+            prob += lpSum([(X[(v,l,p)]-X[(v,b,0)]) * departures[v] + X[(v,b,0)] * max_departures for v in range(num_v)]) <= max_departures
+
+# 9. Positions are taken in order, i.e. position x+1 is only taken if x is taken
+for l in range(num_l):
+    for p in range(num_p-1): #-1 because we don't care about the last
+        prob += lpSum([X[(v,l,p+1)]-X[(v,l,p)] for v in range(num_v)]) <= 0
 
 prob.writeLP("Scheduling.lp")
 prob.solve()
@@ -72,4 +77,11 @@ print("Status:", LpStatus[prob.status])
 #for v in prob.variables():
 #    print(v.name, "=", v.varValue)
 
-print("Minimized value = ", value(prob.objective))
+print("Minimized value =", value(prob.objective))
+
+# Construct solution matrix
+for l in range(num_l):
+    for p in range(num_p):
+        entry = sum([prob.variablesDict()[f'x_{v}_{l}_{p}'].value() for v in range(num_v)])
+        print(entry)
+
