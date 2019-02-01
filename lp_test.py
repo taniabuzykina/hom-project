@@ -2,7 +2,7 @@ import numpy as np
 from pulp import *
 from parser import parse
 
-file_path = 'instance1.txt'
+file_path = 'instances/instance2.txt'
 
 num_v, num_l, v_lengths, series, equipment, l_lengths, departures, schedule_types, blocked = parse(file_path)
 
