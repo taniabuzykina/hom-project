@@ -13,16 +13,18 @@ print(f"Num Variables: {len(v_lengths)*len(l_lengths)*num_p}")
 
 prob = LpProblem("Scheduling", LpMinimize)
 
+# Indicates whether car v is placed in lane l in position p
 X = {(v,l,p): LpVariable(f'x_{v}_{l}_{p}', cat='Binary') for v in range(num_v)
                                                          for l in range(num_l)
                                                          for p in range(num_p)}
-
+# Indicates whether lane l has vehicles of series s
 Y = {(l,s): LpVariable(f'y_{l}_{s}', cat='Binary') for l in range(num_l)
                                                    for s in np.unique(series)}
+# Indicates how much capacity is left in lane l
+C = {l: LpVariable(f'c_{l}', cat='Integer') for l in range(num_l)}
 
-# Min function
-prob += lpSum([Y[(l,s)] for l in range(num_l)
-                        for s in np.unique(series)])
+# Indicates whether lane l and l+1 have the same schedule type (Note: 0 means YES, 1 means NO')
+Z = {l: LpVariable(f'z_{l}', cat='Binary') for l in range(num_l-1)}
 
 # 1. A vehicle is assigned to exactly one lane.
 for v in range(num_v):
@@ -43,10 +45,10 @@ for v in range(num_v):
 
 # 4. the sum of vehicle lengths on a lane cannot exceed the lane capacity, while including the distance of 0.5 between vehicles in a lane.
 for l in range(num_l):
-    prob += lpSum([X[(v,l,p)] * (v_lengths[v] + 0.5) 
+    prob += lpSum([X[(v,l,p)] * (v_lengths[v] + 0.5)
                              for v in range(num_v)
-                             for p in range(num_p)]) - 0.5<= l_lengths[l]
-
+                             for p in range(num_p)]) - 0.5 + C[l] == l_lengths[l]
+    prob += C[l] >= 0
 # 5. A vehicle is assigned to exactly one position (number of a vehicle in a lane).
 # Implied by 1
 
@@ -70,6 +72,30 @@ for p in range(num_p):
 for l in range(num_l):
     for p in range(num_p-1): #-1 because we don't care about the last
         prob += lpSum([X[(v,l,p+1)]-X[(v,l,p)] for v in range(num_v)]) <= 0
+
+################################################################
+#                     OBJECTIVE 1 Specific                     #
+################################################################
+
+# Note that Constraint 4. has also been modified for obj 1
+
+
+for l in range(num_l-1):
+    prob += lpSum([X[(v,l,0)]-X[(v,l+1,0)] for v in range(num_v)]) <= Z[l]*1000 #TODO: pick better big M
+    prob += lpSum([X[(v,l,0)]-X[(v,l+1,0)] for v in range(num_v)]) >= Z[l]*1000*(-1) #TODO: pick better big M
+
+# Weights
+p_1 = 1 / num_l
+p_2 = 1 / num_l
+p_3 = 1 / (sum(l_lengths) - sum(v_lengths))
+
+# Min function
+f_1 = lpSum([Z[l] for l in range(num_l - 1)])
+f_2 = lpSum([Y[(l,s)] for l in range(num_l)
+                      for s in np.unique(series)])
+f_3 = lpSum([C[l] for l in range(num_l)])
+
+prob += p_1 + f_1 + p_2 + f_2 + p_3 + f_3
 
 prob.writeLP("Scheduling.lp")
 prob.solve()
@@ -97,7 +123,7 @@ for l in range(num_l):
             pos = np.argmax(values)+1
             result_matrix[l,p] = pos
 
-with open(file_path + f'_solution_num_p_{num_p}.txt', 'w') as f:
+with open(file_path + f'_solution_obj_1_num_p_{num_p}.txt', 'w') as f:
     for l in range(num_l):
         for p in range(num_p):
             f.write(f'{str(result_matrix[l,p]) + " " if result_matrix[l,p] is not None else ""}')
