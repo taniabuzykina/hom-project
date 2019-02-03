@@ -3,7 +3,7 @@ from pulp import *
 from parser import parse
 import time
 
-file_path = 'instances/instance0.txt'
+file_path = 'instances/instance3.txt'
 
 num_v, num_l, v_lengths, series, equipment, l_lengths, departures, schedule_types, blocked = parse(file_path)
 
