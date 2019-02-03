@@ -3,7 +3,7 @@ from pulp import *
 from parser import parse
 import time
 
-file_path = 'instances/instance3.txt'
+file_path = 'instances/instance0.txt'
 
 num_v, num_l, v_lengths, series, equipment, l_lengths, departures, schedule_types, blocked = parse(file_path)
 
@@ -101,9 +101,13 @@ p_3 = 1 / (sum(l_lengths) - sum(v_lengths))
 f_1 = lpSum([S[l] for l in range(num_l - 1)])
 f_2 = lpSum([Y[(l,s)] for l in range(num_l)
                       for s in np.unique(series)])
-f_3_a = lpSum([C[l] for l in range(num_l)])
-#prob += p_1 * f_1 + p_2 * f_2 + p_3 * f_3
-prob += p_1 * f_1 + p_2 * f_2
+f_3 = lpSum([C[l] for l in range(num_l)])
+
+for l in range(num_l):
+    f_3 += (1-lpSum([Y[(l,s)] for l in range(num_l)
+                           for s in np.unique(series)])) * -(l_lengths[l] + 0.5)
+prob += p_1 * f_1 + p_2 * f_2 + p_3 * f_3
+#prob += p_1 * f_1 + p_2 * f_2 
 
 prob.writeLP("Scheduling2.lp")
 start_time = time.time()
@@ -125,7 +129,7 @@ for l in range(num_l):
             pos = values.index(max(values))+1
             result_matrix[l,p] = pos
 
-with open(file_path + f'_solution_obj_1_num_p_{num_p}.txt', 'w') as f:
+with open(file_path + f'_solution_obj_1_full_num_p_{num_p}.txt', 'w') as f:
     for l in range(num_l):
         for p in range(num_p):
             f.write(f'{str(result_matrix[l,p]) + " " if result_matrix[l,p] is not None else ""}')
@@ -133,7 +137,12 @@ with open(file_path + f'_solution_obj_1_num_p_{num_p}.txt', 'w') as f:
 print('Saved solution matrix.')
 
 
-
+### show output for f_1
+for l in range(num_l):
+    if result_matrix[l,0] is not None:
+        print(series[result_matrix[l,0]-1])
+    else:
+        print("")
 
 
 
