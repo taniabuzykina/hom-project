@@ -1,6 +1,7 @@
 import numpy as np
 from pulp import *
 from parser import parse
+import time
 
 file_path = 'instances/instance3.txt'
 
@@ -9,9 +10,8 @@ num_v, num_l, v_lengths, series, equipment, l_lengths, departures, schedule_type
 num_p = max(l_lengths) // min(v_lengths) # Number of positions (should be calculated and held as small as possible)
 max_departures = max(departures) # latest departure time, we need this for some conditions
 
-print(f"Num Variables: {len(v_lengths)*len(l_lengths)*num_p}")
-
-prob = LpProblem("Scheduling", LpMinimize)
+print('Creating LP.')
+prob = LpProblem("Scheduling_2", LpMinimize)
 
 # Indicates whether car v is placed in lane l in position p
 X = {(v,l,p): LpVariable(f'x_{v}_{l}_{p}', cat='Binary') for v in range(num_v)
@@ -20,11 +20,14 @@ X = {(v,l,p): LpVariable(f'x_{v}_{l}_{p}', cat='Binary') for v in range(num_v)
 # Indicates whether lane l has vehicles of series s
 Y = {(l,s): LpVariable(f'y_{l}_{s}', cat='Binary') for l in range(num_l)
                                                    for s in np.unique(series)}
+# Indicates whether lane l has been used
+#Z = {l: LpVariable(f'z_{l}', cat='Binary') for l in range(num_l)}
+
 # Indicates how much capacity is left in lane l
-C = {l: LpVariable(f'c_{l}', cat='Integer') for l in range(num_l)}
+C = {l: LpVariable(f'c_{l}', cat='Continuous') for l in range(num_l)}
 
 # Indicates whether lane l and l+1 have the same schedule type (Note: 0 means YES, 1 means NO')
-Z = {l: LpVariable(f'z_{l}', cat='Binary') for l in range(num_l-1)}
+S = {l: LpVariable(f's_{l}', cat='Binary') for l in range(num_l-1)}
 
 # 1. A vehicle is assigned to exactly one lane.
 for v in range(num_v):
@@ -35,8 +38,9 @@ for v in range(num_v):
 for l in range(num_l):
     for s in np.unique(series):
         prob += lpSum([X[(v,l,p)] * (series[v] == s) for v in range(num_v)
-                                                     for p in range(num_p)]) <= 10000*Y[(l,s)]
+                                                     for p in range(num_p)]) <= num_v*Y[(l,s)]
     prob += lpSum([Y[(l,s)] for s in np.unique(series)]) <= 1
+  #  prob += Z[l] <= 1
 
 # 3. A vehicle can be placed only on a lane with the necessary equipment constraints related to lane equipment (e.g., tramways can be parked on lanes with rails, buses on any lane).
 for v in range(num_v):
@@ -81,8 +85,12 @@ for l in range(num_l):
 
 
 for l in range(num_l-1):
-    prob += lpSum([X[(v,l,0)]-X[(v,l+1,0)] for v in range(num_v)]) <= Z[l]*1000 #TODO: pick better big M
-    prob += lpSum([X[(v,l,0)]-X[(v,l+1,0)] for v in range(num_v)]) >= Z[l]*1000*(-1) #TODO: pick better big M
+    prob += lpSum([X[(v,l,0)]-X[(v,l+1,0)] for v in range(num_v)]) <= S[l]*1000 #TODO: pick better big M
+    prob += lpSum([X[(v,l,0)]-X[(v,l+1,0)] for v in range(num_v)]) >= S[l]*1000*(-1) #TODO: pick better big M
+
+
+print(f"Num Variables: {len(prob.variables())}")
+print(f"Num Constraints: {len(prob.constraints)}")
 
 # Weights
 p_1 = 1 / num_l
@@ -90,37 +98,31 @@ p_2 = 1 / num_l
 p_3 = 1 / (sum(l_lengths) - sum(v_lengths))
 
 # Min function
-f_1 = lpSum([Z[l] for l in range(num_l - 1)])
+f_1 = lpSum([S[l] for l in range(num_l - 1)])
 f_2 = lpSum([Y[(l,s)] for l in range(num_l)
                       for s in np.unique(series)])
-f_3 = lpSum([C[l] for l in range(num_l)])
+f_3_a = lpSum([C[l] for l in range(num_l)])
+#prob += p_1 * f_1 + p_2 * f_2 + p_3 * f_3
+prob += p_1 * f_1 + p_2 * f_2
 
-prob += p_1 + f_1 + p_2 + f_2 + p_3 + f_3
-
-prob.writeLP("Scheduling.lp")
+prob.writeLP("Scheduling2.lp")
+start_time = time.time()
+print('Solving...')
+LpSolverDefault.msg = 1
 prob.solve()
 
+print("------")
 print("Status:", LpStatus[prob.status])
-
-#for v in prob.variables():
-#    print(v.name, "=", v.varValue)
-
+print(f"Elapsed time: {round(time.time()-start_time, 2)}")
 print("Minimized value =", value(prob.objective))
-
-# Write solution as matrix
-solution_matrix = np.zeros((num_v, num_l, num_p))
-for v in range(num_v):
-    for l in range(num_l):
-        for p in range(num_p):
-            solution_matrix[v,l,p] = prob.variablesDict()[f'x_{v}_{l}_{p}'].varValue
 
 # Construct solution matrix
 result_matrix = np.full((num_l, num_p), None)
 for l in range(num_l):
     for p in range(num_p):
-        values = solution_matrix[:,l,p]
+        values = [X[(v,l,p)].varValue for v in range(num_v)]
         if max(values) > 0:
-            pos = np.argmax(values)+1
+            pos = values.index(max(values))+1
             result_matrix[l,p] = pos
 
 with open(file_path + f'_solution_obj_1_num_p_{num_p}.txt', 'w') as f:
@@ -128,7 +130,7 @@ with open(file_path + f'_solution_obj_1_num_p_{num_p}.txt', 'w') as f:
         for p in range(num_p):
             f.write(f'{str(result_matrix[l,p]) + " " if result_matrix[l,p] is not None else ""}')
         f.write('\n')
-print('Done.')
+print('Saved solution matrix.')
 
 
 
